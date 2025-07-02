@@ -36,31 +36,51 @@ A Model Context Protocol (MCP) server implementation that provides access to the
 
 ## Configuration
 
-### Required Environment Variables
-- `DB_USER`: Your AACT database username
-- `DB_PASSWORD`: Your AACT database password
+### Database Access
+1. Create a free account at https://aact.ctti-clinicaltrials.org/users/sign_up
+2. Set environment variables:
+   - `DB_USER`: AACT database username
+   - `DB_PASSWORD`: AACT database password
 
-## Usage with Semantic Kernel
+## Usage with Claude Desktop
 
-```python
-from semantic_kernel import Kernel
-from semantic_kernel.connectors.mcp import MCPStdioPlugin
+Note that you need Claude Desktop and a Claude subscription at the moment. 
 
-# Create an AACT Clinical Trials MCP plugin
-aact_mcp = MCPStdioPlugin(
-    name="aact",
-    description="Clinical Trials Database Plugin",
-    command="uvx",
-    args=["mcp-server-aact"],
-    env={
-        "DB_USER": "your_aact_username", 
-        "DB_PASSWORD": "your_aact_password"
+Add one of the following configurations to the file claude_desktop_config.json. (On macOS, the file is located at /Users/YOUR_USERNAME/Library/Application Support/Claude/claude_desktop_config.json and you will need to create it yourself if it does not exist yet).
+
+### Option 1: Using the published package
+```json
+"mcpServers": {
+    "CTGOV-MCP": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-aact"
+      ],
+      "env": {
+        "DB_USER": "USERNAME",
+        "DB_PASSWORD": "PASSWORD"
+      }
     }
-)
+}
+```
 
-# Add to Semantic Kernel
-kernel = Kernel()
-kernel.add_plugin(aact_mcp)
+### Option 2: Running from source (development)
+```json
+"mcpServers": {
+    "CTGOV-MCP-DEV": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "PATH_TO_REPOSITORY",
+        "run",
+        "mcp-server-aact"
+      ],
+      "env": {
+        "DB_USER": "USERNAME",
+        "DB_PASSWORD": "PASSWORD"
+      }
+    }
+}
 ```
 
 ## Example Prompts
