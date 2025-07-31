@@ -50,6 +50,7 @@ Add one of the following configurations to the file claude_desktop_config.json. 
 
 ### Option 1: Using the published package
 ```json
+{
 "mcpServers": {
     "CTGOV-MCP": {
       "command": "uvx",
@@ -62,10 +63,12 @@ Add one of the following configurations to the file claude_desktop_config.json. 
       }
     }
 }
+}
 ```
 
 ### Option 2: Running from source (development)
 ```json
+{
 "mcpServers": {
     "CTGOV-MCP-DEV": {
       "command": "uv",
@@ -80,6 +83,7 @@ Add one of the following configurations to the file claude_desktop_config.json. 
         "DB_PASSWORD": "PASSWORD"
       }
     }
+}
 }
 ```
 
