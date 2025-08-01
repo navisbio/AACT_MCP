@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/navisbio-aact-mcp-badge.png)](https://mseep.ai/app/navisbio-aact-mcp)
+
 # AACT Clinical Trials MCP Server
 
 ## Overview
