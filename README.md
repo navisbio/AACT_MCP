@@ -96,12 +96,32 @@ Here are some example prompts to use with this plugin:
 3. "Show me the enrollment statistics for diabetes trials across different countries"
 4. "What percentage of oncology trials have reported results in the last 5 years?"
 
-## Implementation Details
+## Troubleshooting
 
-This server is built using:
-- FastMCP for the Model Context Protocol implementation
-- Python psycopg2 for PostgreSQL database connectivity
-- AACT database as the data source for ClinicalTrials.gov information
+### `spawn uvx ENOENT` Error
+
+This error has been reported when the system cannot find the `uvx` command which might happen when `uvx` is installed in a non-standard location (like `~/.local/bin/`).
+
+**Potential Solution:** Update your configuration with the full path. For example:
+
+```json
+{
+"mcpServers": {
+    "CTGOV-MCP": {
+      "command": "/Users/username/.local/bin/uvx",
+      "args": [
+        "mcp-server-aact"
+      ],
+      "env": {
+        "DB_USER": "USERNAME",
+        "DB_PASSWORD": "PASSWORD"
+      }
+    }
+}
+}
+```
+
+
 
 ## License
 MIT License
