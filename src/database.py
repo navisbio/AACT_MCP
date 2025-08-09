@@ -20,10 +20,15 @@ class AACTDatabase:
     def __init__(self):
         logger.info("Initializing AACT database connection")
         load_dotenv()
-        self.user = os.environ.get("DB_USER")
-        self.password = os.environ.get("DB_PASSWORD")
-        if not self.user or not self.password:
-            raise Exception("DB_USER and DB_PASSWORD environment variables must be set")
+        
+        # Fail-hard policy: No defaults, immediate failure if config missing
+        if "DB_USER" not in os.environ:
+            raise ValueError("Missing required environment variable: DB_USER")
+        if "DB_PASSWORD" not in os.environ:
+            raise ValueError("Missing required environment variable: DB_PASSWORD")
+            
+        self.user = os.environ["DB_USER"]
+        self.password = os.environ["DB_PASSWORD"]
         self.host = "aact-db.ctti-clinicaltrials.org"
         self.database = "aact"
         self._test_connection()
