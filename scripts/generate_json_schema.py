@@ -11,11 +11,13 @@ def get_db_connection():
     """Create database connection using environment variables"""
     load_dotenv()
     
-    user = os.environ.get("DB_USER")
-    password = os.environ.get("DB_PASSWORD")
+    if "DB_USER" not in os.environ:
+        raise ValueError("Missing required environment variable: DB_USER")
+    if "DB_PASSWORD" not in os.environ:
+        raise ValueError("Missing required environment variable: DB_PASSWORD")
     
-    if not user or not password:
-        raise ValueError("DB_USER and DB_PASSWORD environment variables must be set")
+    user = os.environ["DB_USER"]
+    password = os.environ["DB_PASSWORD"]
     
     return psycopg2.connect(
         host="aact-db.ctti-clinicaltrials.org",
@@ -51,7 +53,7 @@ def get_schema_info() -> dict[str, Any]:
             }
 
 def main():
-    resource_dir = Path(__file__).parent.parent / "src" / "mcp_server_aact" / "resources"
+    resource_dir = Path(__file__).parent.parent / "src" / "resources"
     resource_dir.mkdir(parents=True, exist_ok=True)
     
     schema = get_schema_info()

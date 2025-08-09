@@ -1,12 +1,12 @@
 import logging
 import json
 from pathlib import Path
-from mcp.server.fastmcp import FastMCP, Context
 from dotenv import load_dotenv
+from mcp.server.fastmcp import FastMCP, Context
 from .database import AACTDatabase
 from .models import TableInfo, ColumnInfo, QueryResult
 
-# Load environment variables
+# Load environment variables once at startup
 load_dotenv()
 
 # Setup logging
@@ -35,14 +35,13 @@ Do not add other data from your own knowledge or make any assumptions.
 Everything must be grounded in the data received from the tool."""
 )
 
-# Load the schema resource
+# Load the schema resource - fail-hard if missing
 schema_path = Path(__file__).parent / "resources" / "database_schema.json"
-try:
-    with open(schema_path) as f:
-        schema = json.load(f)
-except Exception as e:
-    logger.error(f"Error loading schema: {e}")
-    schema = {}
+if not schema_path.exists():
+    raise FileNotFoundError(f"Required schema file not found: {schema_path}")
+
+with open(schema_path) as f:
+    schema = json.load(f)
 
 @mcp.resource("schema://database")
 def get_schema() -> str:
@@ -90,7 +89,7 @@ async def describe_table(table_name: str, ctx: Context) -> list[ColumnInfo]:
             ColumnInfo(
                 column_name=row['column_name'],
                 data_type=row['data_type'],
-                character_maximum_length=row.get('character_maximum_length')
+                character_maximum_length=row['character_maximum_length'] if 'character_maximum_length' in row else None
             ) for row in results
         ]
     except Exception as e:

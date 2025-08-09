@@ -4,22 +4,12 @@ from contextlib import closing
 from typing import Any
 import psycopg2
 import psycopg2.extras
-from dotenv import load_dotenv
-import json
-import datetime
 
 logger = logging.getLogger('mcp_aact_server.database')
-
-class DateEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime.date):
-            return obj.isoformat()
-        return super().default(obj)
 
 class AACTDatabase:
     def __init__(self):
         logger.info("Initializing AACT database connection")
-        load_dotenv()
         
         # Fail-hard policy: No defaults, immediate failure if config missing
         if "DB_USER" not in os.environ:
