@@ -4,8 +4,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP, Context
 from dotenv import load_dotenv
 from .database import AACTDatabase
-from .memo_manager import MemoManager
-from .models import TableInfo, ColumnInfo, QueryResult, InsightResponse
+from .models import TableInfo, ColumnInfo, QueryResult
 
 # Load environment variables
 load_dotenv()
@@ -14,9 +13,8 @@ load_dotenv()
 logger = logging.getLogger('mcp_aact_server')
 logger.setLevel(logging.DEBUG)
 
-# Create database and memo manager instances
+# Create database instance
 db = AACTDatabase()
-memo_manager = MemoManager()
 
 # Create an MCP server with enhanced configuration
 mcp = FastMCP(
@@ -28,7 +26,6 @@ Use the available tools to:
 1. First explore the database structure with list_tables
 2. Examine specific tables with describe_table
 3. Query data using read_query (SELECT statements only)
-4. Record important findings with append_insight
 
 The database contains comprehensive clinical trial information including studies, outcomes, 
 interventions, sponsors, and more. Always validate table and column names before querying.
@@ -51,11 +48,6 @@ except Exception as e:
 def get_schema() -> str:
     """Return the database schema as a resource"""
     return json.dumps(schema, indent=2)
-
-@mcp.resource("memo://insights")
-def get_insights_memo() -> str:
-    """Return the memo of insights as a resource"""
-    return memo_manager.get_insights_memo()
 
 @mcp.tool()
 async def list_tables(ctx: Context) -> list[TableInfo]:
@@ -142,32 +134,6 @@ async def read_query(query: str, ctx: Context, max_rows: int = 25) -> QueryResul
         )
     except Exception as e:
         await ctx.error(f"Query execution failed: {str(e)}")
-        raise
-
-@mcp.tool()
-async def append_insight(finding: str, ctx: Context) -> InsightResponse:
-    """Record key findings and insights discovered during your analysis. 
-    Use this tool whenever you uncover meaningful patterns, trends, or notable observations 
-    about clinical trials. This helps build a comprehensive analytical narrative 
-    and ensures important discoveries are documented."""
-    if not finding:
-        raise ValueError("Missing finding argument")
-    
-    try:
-        memo_manager.add_insights(finding)
-        total_insights = len(memo_manager.insights)
-        await ctx.info(f"Insight recorded successfully (total: {total_insights})")
-        
-        # Notify clients that the insights resource has changed
-        await ctx.session.send_resource_list_changed()
-        
-        return InsightResponse(
-            success=True,
-            total_insights=total_insights,
-            message="Insight added successfully"
-        )
-    except Exception as e:
-        await ctx.error(f"Failed to add insight: {str(e)}")
         raise
 
 def main():

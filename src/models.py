@@ -20,10 +20,3 @@ class QueryResult(BaseModel):
     rows: list[dict[str, Any]] = Field(..., description="Query result rows")
     row_count: int = Field(..., description="Number of rows returned")
     truncated: bool = Field(..., description="Whether results were truncated due to row limit")
-
-
-class InsightResponse(BaseModel):
-    """Response after adding an insight."""
-    success: bool = Field(..., description="Whether the insight was successfully added")
-    total_insights: int = Field(..., description="Total number of insights collected")
-    message: str = Field(..., description="Status message")

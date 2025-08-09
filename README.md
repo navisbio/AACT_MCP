@@ -19,20 +19,12 @@ A Model Context Protocol (MCP) server implementation that provides access to the
 - `read_query`
    - Execute a SELECT query on the AACT clinical trials database
    - Safely handle SQL queries with validation
-   - Example: `{"query": "SELECT nct_id, brief_title FROM ctgov.studies LIMIT 5"}`
-
-- `append_insight`
-   - Record key findings and insights discovered during analysis
-   - Helps build an analytical narrative
-   - Example: `{"finding": "Phase 3 oncology trials have increased by 15% over the last 5 years"}`
+   - Example: `{"query": "SELECT nct_id, brief_title FROM ctgov.studies LIMIT 5", "max_rows": 50}`
 
 ### Resources
 
 - `schema://database`
    - Returns the database schema as a JSON resource
-
-- `memo://insights`
-   - Returns a formatted memo of insights collected during the session
 
 ## Configuration
 
