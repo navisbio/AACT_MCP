@@ -21,11 +21,6 @@ A Model Context Protocol (MCP) server implementation that provides access to the
    - Safely handle SQL queries with validation
    - Example: `{"query": "SELECT nct_id, brief_title FROM ctgov.studies LIMIT 5", "max_rows": 50}`
 
-### Resources
-
-- `schema://database`
-   - Returns the database schema as a JSON resource
-
 ## Configuration
 
 ### Database Access

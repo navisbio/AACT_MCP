@@ -1,6 +1,4 @@
 import logging
-import json
-from pathlib import Path
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP, Context
 from .database import AACTDatabase
@@ -34,19 +32,6 @@ CRITICAL: If you use this tool, your answer MUST be based on data received from 
 Do not add other data from your own knowledge or make any assumptions. 
 Everything must be grounded in the data received from the tool."""
 )
-
-# Load the schema resource - fail-hard if missing
-schema_path = Path(__file__).parent / "resources" / "database_schema.json"
-if not schema_path.exists():
-    raise FileNotFoundError(f"Required schema file not found: {schema_path}")
-
-with open(schema_path) as f:
-    schema = json.load(f)
-
-@mcp.resource("schema://database")
-def get_schema() -> str:
-    """Return the database schema as a resource"""
-    return json.dumps(schema, indent=2)
 
 @mcp.tool()
 async def list_tables(ctx: Context) -> list[TableInfo]:
