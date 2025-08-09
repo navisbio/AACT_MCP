@@ -38,7 +38,7 @@ Add one of the following configurations to the file claude_desktop_config.json. 
 ### Option 1: Using the published package
 ```json
 {
-"mcpServers": {
+  "mcpServers": {
     "CTGOV-MCP": {
       "command": "uvx",
       "args": [
@@ -49,30 +49,50 @@ Add one of the following configurations to the file claude_desktop_config.json. 
         "DB_PASSWORD": "PASSWORD"
       }
     }
-}
+  }
 }
 ```
 
-### Option 2: Running from source (development)
+### Option 2: Using Docker
+
+Simply add this configuration to claude_desktop_config.json (no build required):
 ```json
 {
-"mcpServers": {
-    "CTGOV-MCP-DEV": {
-      "command": "uv",
+  "mcpServers": {
+    "CTGOV-MCP-DOCKER": {
+      "command": "docker",
       "args": [
-        "--directory",
-        "PATH_TO_REPOSITORY",
         "run",
-        "mcp-server-aact"
-      ],
-      "env": {
-        "DB_USER": "USERNAME",
-        "DB_PASSWORD": "PASSWORD"
-      }
+        "--rm",
+        "-i",
+        "--env", "DB_USER=YOUR_USERNAME",
+        "--env", "DB_PASSWORD=YOUR_PASSWORD",
+        "navisbio/mcp-server-aact:latest"
+      ]
     }
-}
+  }
 }
 ```
+
+### Option 3: Running from source (development)
+
+Simply add this configuration to claude_desktop_config.json (no build required):
+```json
+{
+  "mcpServers": {
+    "CTGOV-MCP-DOCKER": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--env", "DB_USER=YOUR_USERNAME",
+        "--env", "DB_PASSWORD=YOUR_PASSWORD",
+        "navisbio/mcp-server-aact:latest"
+      ]
+    }
+  }
+}
 
 ## Example Prompts
 
