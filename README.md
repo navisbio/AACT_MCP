@@ -93,6 +93,7 @@ Simply add this configuration to claude_desktop_config.json (no build required):
     }
   }
 }
+```
 
 ## Example Prompts
 
@@ -128,10 +129,6 @@ This error has been reported when the system cannot find the `uvx` command which
 }
 ```
 
-
-
-## License
-MIT License
 
 ## Contributing
 We welcome contributions! Please:
