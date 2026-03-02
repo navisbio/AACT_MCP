@@ -1,0 +1,11 @@
+.venv/
+.env
+.git/
+.gitignore
+.pytest_cache/
+.claude/
+__pycache__/
+tests/
+*.pyc
+uv.lock
+CLAUDE.md

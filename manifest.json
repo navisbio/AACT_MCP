@@ -1,0 +1,61 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcp-server-aact",
+  "version": "0.4.0",
+  "display_name": "AACT Clinical Trials Database",
+  "description": "Query the AACT (ClinicalTrials.gov) database directly from Claude. Explore clinical trial data including studies, interventions, outcomes, sponsors, and more using SQL.",
+  "author": {
+    "name": "Jonas Walheim"
+  },
+  "tools": [
+    {
+      "name": "list_tables",
+      "description": "Discover available tables in the AACT database"
+    },
+    {
+      "name": "describe_table",
+      "description": "Inspect column names and types for a specific table"
+    },
+    {
+      "name": "read_query",
+      "description": "Execute a SELECT query with buffered results and preview"
+    },
+    {
+      "name": "fetch_rows",
+      "description": "Page through buffered query results without re-querying"
+    }
+  ],
+  "server": {
+    "type": "python",
+    "entry_point": "src/__init__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "mcp-server-aact"],
+      "env": {
+        "DB_USER": "${user_config.db_user}",
+        "DB_PASSWORD": "${user_config.db_password}"
+      }
+    }
+  },
+  "user_config": {
+    "db_user": {
+      "type": "string",
+      "title": "AACT Database Username",
+      "description": "Your AACT username. Register free at https://aact.ctti-clinicaltrials.org",
+      "required": true
+    },
+    "db_password": {
+      "type": "string",
+      "title": "AACT Database Password",
+      "description": "Your AACT password",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}
