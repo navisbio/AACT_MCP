@@ -29,7 +29,10 @@ class AACTDatabase:
         with closing(self._get_connection()) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT current_database(), current_schema;")
-                db, schema = cur.fetchone()
+                result = cur.fetchone()
+                if result is None:
+                    raise RuntimeError("Connection test query returned no results")
+                db, schema = result
                 logger.info(f"Connected to database: {db}, current schema: {schema}")
 
     def _get_connection(self):
@@ -41,13 +44,20 @@ class AACTDatabase:
             password=self.password
         )
 
-    def execute_query(self, query: str, params: dict[str, Any] | None = None, row_limit: int | None = None) -> list[dict[str, Any]]:
+    def execute_query(
+        self, query: str, params: dict[str, Any] | None = None, row_limit: int | None = None
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """Execute a read-only query and return (rows, truncated).
+
+        Fetches row_limit + 1 rows to accurately detect whether more data exists.
+        Returns at most row_limit rows; truncated is True if extra rows were available.
+        """
         logger.debug(f"Executing query: {query}")
         if params:
             logger.debug(f"Query parameters: {params}")
         if row_limit:
             logger.debug(f"Row limit: {row_limit}")
-            
+
         with closing(self._get_connection()) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 if params:
@@ -56,12 +66,16 @@ class AACTDatabase:
                     cur.execute(query)
                 if query.strip().upper().startswith(("SELECT", "SHOW", "DESCRIBE")):
                     if row_limit:
-                        results = cur.fetchmany(row_limit)
+                        results = cur.fetchmany(row_limit + 1)
+                        truncated = len(results) > row_limit
+                        if truncated:
+                            results = results[:row_limit]
                     else:
                         results = cur.fetchall()
-                    logger.debug(f"Query returned {len(results)} rows")
-                    return [dict(row) for row in results]
+                        truncated = False
+                    logger.debug(f"Query returned {len(results)} rows (truncated={truncated})")
+                    return [dict(row) for row in results], truncated
                 else:
                     conn.rollback()
                     logger.warning("Attempted write operation. Rolling back.")
-                    return [{"message": "Only read operations are allowed"}]
+                    raise ValueError("Only read operations are allowed")
