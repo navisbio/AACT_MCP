@@ -18,7 +18,6 @@ from .models import (
 )
 
 logger = logging.getLogger('mcp_aact_server')
-logger.setLevel(logging.DEBUG)
 
 
 @dataclass
@@ -67,23 +66,18 @@ def _get_ctx(ctx: Context) -> AppContext:
 
 @mcp.tool()
 async def list_tables(ctx: Context) -> list[TableInfo]:
-    """Get an overview of all available tables in the AACT database.
-    This tool helps you understand the database structure before starting your analysis
-    to identify relevant data sources."""
+    """Call this first to discover available tables before writing any queries.
+    Returns all table names in the AACT ctgov schema (studies, interventions, outcomes, etc.).
+    Use the returned names with describe_table to inspect columns before querying."""
     app = _get_ctx(ctx)
-    try:
-        await ctx.info("Fetching AACT database tables...")
-        results, _ = app.db.execute_query("""
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = 'ctgov'
-            ORDER BY table_name;
-        """)
-        await ctx.debug(f"Retrieved {len(results)} tables")
-        return [TableInfo(table_name=row['table_name']) for row in results]
-    except Exception as e:
-        await ctx.error(f"Failed to list tables: {str(e)}")
-        raise
+    results, _ = app.db.execute_query("""
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'ctgov'
+        ORDER BY table_name;
+    """)
+    await ctx.debug(f"Retrieved {len(results)} tables")
+    return [TableInfo(table_name=row['table_name']) for row in results]
 
 
 @mcp.tool()
@@ -91,30 +85,26 @@ async def describe_table(
     table_name: Annotated[str, Field(description="Name of the table to describe", min_length=1)],
     ctx: Context,
 ) -> list[ColumnInfo]:
-    """Examine the detailed structure of a specific AACT table, including column names and data types.
-    Use this before querying to ensure you target the right columns and understand the data format."""
+    """Call this before writing a query to learn the column names and types for a table.
+    Returns all columns with their SQL data types. Use the exact column names in your SELECT queries.
+    If the table name is invalid, returns an empty list — check list_tables for valid names."""
     app = _get_ctx(ctx)
-    try:
-        await ctx.info(f"Examining structure of table: {table_name}")
-        results, _ = app.db.execute_query("""
-            SELECT column_name, data_type, character_maximum_length
-            FROM information_schema.columns
-            WHERE table_schema = 'ctgov'
-            AND table_name = %s
-            ORDER BY ordinal_position;
-        """, {"table_name": table_name})
+    results, _ = app.db.execute_query("""
+        SELECT column_name, data_type, character_maximum_length
+        FROM information_schema.columns
+        WHERE table_schema = 'ctgov'
+        AND table_name = %s
+        ORDER BY ordinal_position;
+    """, {"table_name": table_name})
 
-        await ctx.debug(f"Retrieved {len(results)} columns for table {table_name}")
-        return [
-            ColumnInfo(
-                column_name=row['column_name'],
-                data_type=row['data_type'],
-                character_maximum_length=row['character_maximum_length'] if 'character_maximum_length' in row else None
-            ) for row in results
-        ]
-    except Exception as e:
-        await ctx.error(f"Failed to describe table {table_name}: {str(e)}")
-        raise
+    await ctx.debug(f"Retrieved {len(results)} columns for table {table_name}")
+    return [
+        ColumnInfo(
+            column_name=row['column_name'],
+            data_type=row['data_type'],
+            character_maximum_length=row.get('character_maximum_length'),
+        ) for row in results
+    ]
 
 
 @mcp.tool()
@@ -130,55 +120,44 @@ async def read_query(
         gt=0, le=50,
     )] = 5,
 ) -> QueryResultSummary:
-    """Execute a SELECT query on the AACT clinical trials database.
-
-    Returns a summary with column names, total row count, and a small preview.
-    Full results are buffered server-side — use fetch_rows to retrieve more pages
-    without re-executing the query."""
+    """Run a SELECT query and get a summary with a small preview of results.
+    Full results are buffered server-side — call fetch_rows with the returned query_id
+    to page through them without re-executing the query.
+    Only SELECT statements are allowed. Use WHERE and LIMIT to narrow results before fetching.
+    If truncated is true, the query had more rows than max_rows — add a LIMIT or tighter WHERE."""
     app = _get_ctx(ctx)
 
     query = query.strip()
     if not query.upper().startswith("SELECT"):
-        raise ValueError("Only SELECT queries are allowed")
-
-    try:
-        await ctx.info(f"Executing query (buffering up to {max_rows} rows)...")
-        results, truncated = app.db.execute_query(query, row_limit=max_rows)
-        row_count = len(results)
-        await ctx.debug(f"Query returned {row_count} rows (truncated={truncated})")
-
-        columns = list(results[0].keys()) if results else []
-
-        app.query_counter += 1
-        query_id = f"q{app.query_counter}"
-
-        app.result_buffer = ResultBuffer(
-            query_id=query_id,
-            query=query,
-            columns=columns,
-            rows=results,
-            truncated=truncated,
+        raise ValueError(
+            "Only SELECT queries are allowed. "
+            "Rewrite your query to start with SELECT."
         )
 
-        preview = results[:preview_rows]
+    results, truncated = app.db.execute_query(query, row_limit=max_rows)
+    row_count = len(results)
+    await ctx.debug(f"Query returned {row_count} rows (truncated={truncated})")
 
-        if row_count > 10:
-            await ctx.report_progress(
-                progress=1.0,
-                total=1.0,
-                message=f"Buffered {row_count} rows (showing {len(preview)} preview)"
-            )
+    columns = list(results[0].keys()) if results else []
 
-        return QueryResultSummary(
-            query_id=query_id,
-            columns=columns,
-            row_count=row_count,
-            truncated=truncated,
-            preview=preview,
-        )
-    except Exception as e:
-        await ctx.error(f"Query execution failed: {str(e)}")
-        raise
+    app.query_counter += 1
+    query_id = f"q{app.query_counter}"
+
+    app.result_buffer = ResultBuffer(
+        query_id=query_id,
+        query=query,
+        columns=columns,
+        rows=results,
+        truncated=truncated,
+    )
+
+    return QueryResultSummary(
+        query_id=query_id,
+        columns=columns,
+        row_count=row_count,
+        truncated=truncated,
+        preview=results[:preview_rows],
+    )
 
 
 @mcp.tool()
@@ -194,23 +173,24 @@ async def fetch_rows(
         gt=0, le=100,
     )] = 25,
 ) -> QueryResultPage:
-    """Fetch a page of rows from the server-side buffer.
-
-    Use this after read_query to retrieve specific rows without re-executing the query.
-    The buffer holds the result of the most recent read_query call."""
+    """Retrieve a page of rows from the buffered result of the most recent read_query.
+    No database round-trip — reads from server memory. Use the query_id from read_query.
+    If has_more is true, call again with start incremented by count for the next page.
+    If the buffer was replaced by a newer read_query, re-run read_query to get a fresh query_id."""
     app = _get_ctx(ctx)
     buf = app.result_buffer
 
     if buf is None:
-        raise ValueError("No buffered query result. Run read_query first.")
+        raise ValueError(
+            "No buffered query result. Call read_query first to execute a query."
+        )
     if buf.query_id != query_id:
         raise ValueError(
-            f"query_id '{query_id}' does not match current buffer '{buf.query_id}'. "
-            "The buffer was replaced by a newer query. Re-run read_query if needed."
+            f"query_id '{query_id}' is stale — the buffer now holds '{buf.query_id}'. "
+            "Call read_query again to re-execute your query and get a new query_id."
         )
 
     page = buf.rows[start:start + count]
-    await ctx.debug(f"Fetching rows {start}-{start + len(page)} of {len(buf.rows)}")
 
     return QueryResultPage(
         rows=page,

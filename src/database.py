@@ -52,9 +52,8 @@ class AACTDatabase:
         Fetches row_limit + 1 rows to accurately detect whether more data exists.
         Returns at most row_limit rows; truncated is True if extra rows were available.
         """
-        logger.debug(f"Executing query: {query}")
-        if params:
-            logger.debug(f"Query parameters: {params}")
+        truncated_query = (query[:200] + "...") if len(query) > 200 else query
+        logger.debug(f"Executing query: {truncated_query.strip()}")
         if row_limit:
             logger.debug(f"Row limit: {row_limit}")
 
