@@ -3,6 +3,12 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 from typing import Any
 
+GROUNDING_NOTICE = (
+    "CONTRACT: Your response MUST use ONLY data returned by this tool. "
+    "Do not supplement with your own knowledge. "
+    "If the data is insufficient, say so and suggest a follow-up query."
+)
+
 
 class TableInfo(BaseModel):
     """Information about a database table."""
@@ -18,6 +24,7 @@ class ColumnInfo(BaseModel):
 
 class QueryResultSummary(BaseModel):
     """Summary returned by read_query. Full rows are buffered server-side."""
+    notice: str = Field(default=GROUNDING_NOTICE, description="Data usage contract")
     query_id: str = Field(..., description="ID to use with fetch_rows to retrieve more data")
     columns: list[str] = Field(..., description="Column names in the result set")
     row_count: int = Field(..., description="Total rows buffered from the query")
@@ -27,6 +34,7 @@ class QueryResultSummary(BaseModel):
 
 class QueryResultPage(BaseModel):
     """A page of rows retrieved from the server-side buffer."""
+    notice: str = Field(default=GROUNDING_NOTICE, description="Data usage contract")
     rows: list[dict[str, Any]] = Field(..., description="Rows in this page")
     start: int = Field(..., description="Starting row index of this page (0-based)")
     count: int = Field(..., description="Number of rows in this page")
