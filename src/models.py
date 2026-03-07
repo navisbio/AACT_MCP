@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Any
 
 GROUNDING_NOTICE = (
-    "CONTRACT: Your response MUST use ONLY data returned by this tool. "
-    "Do not supplement with your own knowledge. "
+    "GROUNDING: Only data that appears in this response may be cited in your output. "
+    "Do not supplement with trial IDs, drug names, or statistics from your own knowledge. "
     "If the data is insufficient, say so and suggest a follow-up query."
 )
 
@@ -13,6 +13,7 @@ GROUNDING_NOTICE = (
 class TableInfo(BaseModel):
     """Information about a database table."""
     table_name: str = Field(..., description="Name of the table")
+    approximate_row_count: int | None = Field(None, description="Approximate number of rows (from pg_class statistics)")
 
 
 class ColumnInfo(BaseModel):
@@ -20,11 +21,19 @@ class ColumnInfo(BaseModel):
     column_name: str = Field(..., description="Name of the column")
     data_type: str = Field(..., description="SQL data type of the column")
     character_maximum_length: int | None = Field(None, description="Maximum length for character columns")
+    sample_values: list[str] | None = Field(None, description="Most common values for low-cardinality columns (≤25 distinct values)")
+
+
+class JoinInfo(BaseModel):
+    """Describes a heuristic join relationship between two tables via a shared column."""
+    source_table: str = Field(..., description="Table that has the join column")
+    source_column: str = Field(..., description="Column name in the source table")
+    target_table: str = Field(..., description="Other table that shares the same column")
+    target_column: str = Field(..., description="Column name in the target table")
 
 
 class QueryResultSummary(BaseModel):
     """Summary returned by read_query. Full rows are buffered server-side."""
-    notice: str = Field(default=GROUNDING_NOTICE, description="Data usage contract")
     query_id: str = Field(..., description="ID to use with fetch_rows to retrieve more data")
     columns: list[str] = Field(..., description="Column names in the result set")
     row_count: int = Field(..., description="Total rows buffered from the query")
@@ -34,7 +43,6 @@ class QueryResultSummary(BaseModel):
 
 class QueryResultPage(BaseModel):
     """A page of rows retrieved from the server-side buffer."""
-    notice: str = Field(default=GROUNDING_NOTICE, description="Data usage contract")
     rows: list[dict[str, Any]] = Field(..., description="Rows in this page")
     start: int = Field(..., description="Starting row index of this page (0-based)")
     count: int = Field(..., description="Number of rows in this page")

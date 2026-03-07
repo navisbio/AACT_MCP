@@ -17,6 +17,10 @@
       "description": "Inspect column names and types for a specific table"
     },
     {
+      "name": "get_column_values",
+      "description": "Get distinct values for a column with counts — essential before filtering"
+    },
+    {
       "name": "read_query",
       "description": "Execute a SELECT query with buffered results and preview"
     },

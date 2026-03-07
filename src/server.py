@@ -6,10 +6,12 @@ from typing import Annotated
 
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.types import TextContent
 from pydantic import Field
 
 from .database import AACTDatabase
 from .models import (
+    GROUNDING_NOTICE,
     TableInfo,
     ColumnInfo,
     QueryResultSummary,
@@ -43,14 +45,24 @@ mcp = FastMCP(
 
 Use the available tools to explore and query the database:
 1. list_tables — discover available tables
-2. describe_table — examine columns in a specific table
-3. read_query — execute a SELECT query; returns a summary with a small preview, buffers full results server-side
-4. fetch_rows — retrieve pages of rows from the buffered result using the query_id
+2. describe_table — examine columns and sample values for a specific table
+3. get_column_values — get distinct values for a column (essential for filters like phase, status)
+4. read_query — execute a SELECT query; returns a summary with a small preview, buffers full results server-side
+5. fetch_rows — retrieve pages of rows from the buffered result using the query_id
 
-Workflow: Use read_query to run your SQL. Review the preview rows. If you need more data,
-use fetch_rows with the query_id to page through results without re-executing the query.
-If you need different data, run a new read_query (this replaces the buffer).
-Use SQL WHERE, LIMIT, and ORDER BY to narrow results before fetching.
+Recommended workflow:
+1. Call describe_table on tables you plan to query
+2. Call get_column_values for columns you want to filter on (phase, overall_status, etc.)
+3. Build your SQL using the exact values returned — do NOT guess enum formats
+4. Use read_query to run your SQL. Review the preview rows.
+5. Use fetch_rows with the query_id to page through results if needed.
+
+Common pitfalls:
+- Phase values are UPPERCASE with no spaces: PHASE1, PHASE2, PHASE3, PHASE4, PHASE1/PHASE2, PHASE2/PHASE3
+- Status values use UPPERCASE with underscores: RECRUITING, COMPLETED, ACTIVE_NOT_RECRUITING, TERMINATED, NOT_YET_RECRUITING
+- Condition and intervention names are inconsistent free text — always use ILIKE with % wildcards
+- All tables join on nct_id. Key tables: studies, conditions, interventions, sponsors, outcomes, facilities
+- Use browse_conditions and browse_interventions for MeSH-standardized terms (more reliable than free-text tables)
 
 CRITICAL: Your answer MUST be based on data received from the AACT database exclusively.
 Do not add other data from your own knowledge or make any assumptions.
@@ -64,8 +76,19 @@ def _get_ctx(ctx: Context) -> AppContext:
     return ctx.request_context.lifespan_context
 
 
+def grounded_result(data: object, *, grounding: bool = False) -> list[TextContent]:
+    """Return tool result with optional grounding notice as second content element."""
+    import json
+    content: list[TextContent] = [
+        TextContent(type="text", text=json.dumps(data, default=str, indent=2))
+    ]
+    if grounding:
+        content.append(TextContent(type="text", text=GROUNDING_NOTICE))
+    return content
+
+
 @mcp.tool()
-async def list_tables(ctx: Context) -> list[TableInfo]:
+async def list_tables(ctx: Context):
     """Call this first to discover available tables before writing any queries.
     Returns all table names in the AACT ctgov schema (studies, interventions, outcomes, etc.).
     Use the returned names with describe_table to inspect columns before querying."""
@@ -77,17 +100,20 @@ async def list_tables(ctx: Context) -> list[TableInfo]:
         ORDER BY table_name;
     """)
     await ctx.debug(f"Retrieved {len(results)} tables")
-    return [TableInfo(table_name=row['table_name']) for row in results]
+    tables = [TableInfo(table_name=row['table_name']).model_dump() for row in results]
+    return grounded_result(tables)
 
 
 @mcp.tool()
 async def describe_table(
     table_name: Annotated[str, Field(description="Name of the table to describe", min_length=1)],
     ctx: Context,
-) -> list[ColumnInfo]:
+):
     """Call this before writing a query to learn the column names and types for a table.
     Returns all columns with their SQL data types. Use the exact column names in your SELECT queries.
-    If the table name is invalid, returns an empty list — check list_tables for valid names."""
+    If the table name is invalid, returns an empty list — check list_tables for valid names.
+    After this, call get_column_values on any column you plan to filter on (especially phase,
+    overall_status, study_type) to learn the exact stored values — do NOT guess the format."""
     app = _get_ctx(ctx)
     results, _ = app.db.execute_query("""
         SELECT column_name, data_type, character_maximum_length
@@ -98,13 +124,51 @@ async def describe_table(
     """, {"table_name": table_name})
 
     await ctx.debug(f"Retrieved {len(results)} columns for table {table_name}")
-    return [
+    columns = [
         ColumnInfo(
             column_name=row['column_name'],
             data_type=row['data_type'],
             character_maximum_length=row.get('character_maximum_length'),
-        ) for row in results
+        ).model_dump() for row in results
     ]
+    return grounded_result(columns)
+
+
+@mcp.tool()
+async def get_column_values(
+    table_name: Annotated[str, Field(description="Table name in the ctgov schema", min_length=1)],
+    column_name: Annotated[str, Field(description="Column to get distinct values for", min_length=1)],
+    ctx: Context,
+    limit: Annotated[int, Field(
+        description="Maximum distinct values to return",
+        gt=0, le=100,
+    )] = 25,
+):
+    """Get the distinct values stored in a column, with counts. CALL THIS before filtering on any
+    column to learn the exact format — values are often UPPERCASE or use underscores (e.g. PHASE3
+    not 'Phase 3', ACTIVE_NOT_RECRUITING not 'Active, not recruiting'). Essential for: studies.phase,
+    studies.overall_status, studies.study_type, sponsors.lead_or_collaborator, interventions.intervention_type.
+    Returns up to `limit` values sorted by frequency (most common first)."""
+    app = _get_ctx(ctx)
+
+    # Sanitize table/column names to prevent injection (only allow alphanumeric + underscore)
+    import re
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+        raise ValueError(f"Invalid table name: {table_name}")
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', column_name):
+        raise ValueError(f"Invalid column name: {column_name}")
+
+    results, _ = app.db.execute_query(
+        f"SELECT {column_name} AS value, COUNT(*) AS count "
+        f"FROM ctgov.{table_name} "
+        f"WHERE {column_name} IS NOT NULL "
+        f"GROUP BY {column_name} "
+        f"ORDER BY count DESC "
+        f"LIMIT {limit}"
+    )
+
+    await ctx.debug(f"Retrieved {len(results)} distinct values for {table_name}.{column_name}")
+    return grounded_result(results)
 
 
 @mcp.tool()
@@ -119,12 +183,30 @@ async def read_query(
         description="Number of rows to return immediately as a preview.",
         gt=0, le=50,
     )] = 5,
-) -> QueryResultSummary:
+):
     """Run a SELECT query and get a summary with a small preview of results.
     Full results are buffered server-side — call fetch_rows with the returned query_id
     to page through them without re-executing the query.
     Only SELECT statements are allowed. Use WHERE and LIMIT to narrow results before fetching.
-    If truncated is true, the query had more rows than max_rows — add a LIMIT or tighter WHERE."""
+    If truncated is true, the query had more rows than max_rows — add a LIMIT or tighter WHERE.
+
+    Common pitfalls — read before writing your query:
+    - Phase is UPPERCASE no spaces: WHERE phase = 'PHASE3' (NOT 'Phase 3')
+    - Status is UPPERCASE with underscores: WHERE overall_status = 'RECRUITING' (NOT 'Recruiting')
+    - Use ILIKE with % for text search: WHERE name ILIKE '%pembrolizumab%'
+    - All tables join on nct_id: JOIN ctgov.conditions c ON s.nct_id = c.nct_id
+    - Use browse_conditions/browse_interventions for standardized MeSH terms
+    - For lead sponsor only: WHERE lead_or_collaborator = 'lead'
+
+    Example — find trials by drug + condition + phase:
+    SELECT DISTINCT s.nct_id, s.brief_title, s.phase, s.overall_status, s.enrollment
+    FROM ctgov.studies s
+    JOIN ctgov.browse_interventions bi ON s.nct_id = bi.nct_id
+    JOIN ctgov.conditions c ON s.nct_id = c.nct_id
+    WHERE bi.mesh_term ILIKE '%pembrolizumab%'
+      AND c.name ILIKE '%lung%'
+      AND s.phase = 'PHASE3'
+    ORDER BY s.enrollment DESC NULLS LAST LIMIT 25"""
     app = _get_ctx(ctx)
 
     query = query.strip()
@@ -151,13 +233,14 @@ async def read_query(
         truncated=truncated,
     )
 
-    return QueryResultSummary(
+    summary = QueryResultSummary(
         query_id=query_id,
         columns=columns,
         row_count=row_count,
         truncated=truncated,
         preview=results[:preview_rows],
     )
+    return grounded_result(summary.model_dump(), grounding=True)
 
 
 @mcp.tool()
@@ -172,7 +255,7 @@ async def fetch_rows(
         description="Number of rows to fetch",
         gt=0, le=100,
     )] = 25,
-) -> QueryResultPage:
+):
     """Retrieve a page of rows from the buffered result of the most recent read_query.
     No database round-trip — reads from server memory. Use the query_id from read_query.
     If has_more is true, call again with start incremented by count for the next page.
@@ -192,13 +275,14 @@ async def fetch_rows(
 
     page = buf.rows[start:start + count]
 
-    return QueryResultPage(
+    result = QueryResultPage(
         rows=page,
         start=start,
         count=len(page),
         total_rows=len(buf.rows),
         has_more=(start + count) < len(buf.rows),
     )
+    return grounded_result(result.model_dump(), grounding=True)
 
 
 def main():

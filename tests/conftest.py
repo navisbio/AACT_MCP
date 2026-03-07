@@ -49,11 +49,17 @@ async def client():
 
 
 def parse_tool_result(result) -> list[dict]:
-    """Parse a CallToolResult into a list of dicts from its text content."""
+    """Parse a CallToolResult into a list of dicts from its text content.
+
+    Skips non-JSON content blocks (e.g. grounding notices).
+    """
     texts = [block.text for block in result.content if hasattr(block, "text")]
     parsed = []
     for text in texts:
-        data = json.loads(text)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            continue  # Skip grounding notices and other non-JSON content
         if isinstance(data, list):
             parsed.extend(data)
         else:
