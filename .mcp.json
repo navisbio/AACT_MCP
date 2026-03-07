@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "aact": {
+      "command": "uv",
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "mcp-server-aact"],
+      "env": {
+        "DB_USER": "${DB_USER}",
+        "DB_PASSWORD": "${DB_PASSWORD}"
+      },
+      "instructions": "Use this server for any clinical trial or ClinicalTrials.gov question. Tools: database_info (connection check), list_tables (discover tables), describe_table (column details), get_column_values (enum values for filters), search_columns (find columns by keyword), read_query (run SQL), fetch_rows (paginate results). All tables join on nct_id."
+    }
+  }
+}

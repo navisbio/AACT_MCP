@@ -7,6 +7,24 @@ import psycopg2.extras
 
 logger = logging.getLogger('mcp_aact_server.database')
 
+ALLOWED_READ_PREFIXES = ("SELECT", "WITH", "EXPLAIN", "SHOW", "DESCRIBE")
+
+
+def _strip_leading_comments(sql: str) -> str:
+    """Strip leading SQL comments (-- and /* */) to expose the real statement prefix."""
+    s = sql.strip()
+    while True:
+        if s.startswith("--"):
+            newline = s.find("\n")
+            s = s[newline + 1:].strip() if newline != -1 else ""
+        elif s.startswith("/*"):
+            end = s.find("*/")
+            s = s[end + 2:].strip() if end != -1 else ""
+        else:
+            break
+    return s
+
+
 class AACTDatabase:
     def __init__(self):
         logger.info("Initializing AACT database connection")
@@ -36,6 +54,11 @@ class AACTDatabase:
                 logger.info(f"Connected to database: {db}, current schema: {schema}")
 
     def _get_connection(self):
+        """Create a new independent database connection.
+
+        Each call returns a fresh connection, so concurrent tool calls are safe
+        and will not interfere with each other.
+        """
         logger.debug("Creating new database connection")
         return psycopg2.connect(
             host=self.host,
@@ -59,11 +82,15 @@ class AACTDatabase:
 
         with closing(self._get_connection()) as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                if params:
-                    cur.execute(query, list(params.values()))
-                else:
-                    cur.execute(query)
-                if query.strip().upper().startswith(("SELECT", "SHOW", "DESCRIBE")):
+                try:
+                    if params:
+                        cur.execute(query, list(params.values()))
+                    else:
+                        cur.execute(query)
+                except psycopg2.Error as e:
+                    conn.rollback()
+                    raise ValueError(f"Database error ({e.pgcode}): {e.pgerror or e}") from e
+                if _strip_leading_comments(query).upper().startswith(ALLOWED_READ_PREFIXES):
                     if row_limit:
                         results = cur.fetchmany(row_limit + 1)
                         truncated = len(results) > row_limit

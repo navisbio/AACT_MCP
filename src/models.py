@@ -4,8 +4,9 @@ from pydantic import BaseModel, Field
 from typing import Any
 
 GROUNDING_NOTICE = (
-    "GROUNDING: Only data that appears in this response may be cited in your output. "
-    "Do not supplement with trial IDs, drug names, or statistics from your own knowledge. "
+    "GROUNDING: Every factual claim in your response must trace back to a row in a tool result. "
+    "NEVER invent, guess, or recall NCT IDs, drug names, statistics, or study details from memory. "
+    "Only data that appears in this response may be cited. "
     "If the data is insufficient, say so and suggest a follow-up query."
 )
 
@@ -21,15 +22,9 @@ class ColumnInfo(BaseModel):
     column_name: str = Field(..., description="Name of the column")
     data_type: str = Field(..., description="SQL data type of the column")
     character_maximum_length: int | None = Field(None, description="Maximum length for character columns")
+    total_distinct: int | None = Field(None, description="Approximate number of distinct values (from pg_stats)")
     sample_values: list[str] | None = Field(None, description="Most common values for low-cardinality columns (≤25 distinct values)")
-
-
-class JoinInfo(BaseModel):
-    """Describes a heuristic join relationship between two tables via a shared column."""
-    source_table: str = Field(..., description="Table that has the join column")
-    source_column: str = Field(..., description="Column name in the source table")
-    target_table: str = Field(..., description="Other table that shares the same column")
-    target_column: str = Field(..., description="Column name in the target table")
+    example_values: list[str] | None = Field(None, description="Example values from a few rows (for high-cardinality text columns)")
 
 
 class QueryResultSummary(BaseModel):

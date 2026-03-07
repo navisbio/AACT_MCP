@@ -30,7 +30,7 @@ Be concrete and specific — reference actual tool calls, error messages, and qu
 
 HALLUCINATION_CHECK_PROMPT="I want you to check for each of the NCT IDs, drug names, sponsor names, and statistics you mentioned if they really exist in the database or if you hallucinated them. For each one, verify by querying the AACT database again. Report a table with: entity name, claimed value, verified value, and whether the verification passed or failed."
 
-ALLOWED_TOOLS="mcp__plugin_aact_aact__list_tables,mcp__plugin_aact_aact__describe_table,mcp__plugin_aact_aact__get_column_values,mcp__plugin_aact_aact__read_query,mcp__plugin_aact_aact__fetch_rows,Read,Write,Edit,Grep,Glob,Bash,Skill,Agent"
+ALLOWED_TOOLS="mcp__plugin_aact_aact__database_info,mcp__plugin_aact_aact__list_tables,mcp__plugin_aact_aact__describe_table,mcp__plugin_aact_aact__get_column_values,mcp__plugin_aact_aact__search_columns,mcp__plugin_aact_aact__read_query,mcp__plugin_aact_aact__fetch_rows"
 
 # ── Load credentials ────────────────────────────────────────────────────
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -85,6 +85,9 @@ TESTS=(
   "recruitment-pipeline|10|4.00|Build a pipeline view of actively recruiting oncology trials. Query for trials with overall_status='Recruiting' and conditions matching cancer/tumor/carcinoma/lymphoma. Group by phase and show the top 10 conditions by trial count. Include total enrollment across all matching trials."
   "trial-design-analysis|12|5.00|Compare the study designs of COVID-19 vaccine trials. Find trials where interventions mention 'vaccine' and conditions mention 'COVID' or 'SARS-CoV-2'. Analyze the distribution of study types, masking, allocation methods, and enrollment sizes. Which companies ran the largest trials?"
   "geographic-analysis|10|4.00|Analyze where clinical trials for rare diseases are conducted. Find trials where conditions match 'orphan' or specific rare diseases like 'cystic fibrosis' or 'Huntington'. Query the facilities table to identify the top countries and institutions. How many sites does a typical rare disease trial have?"
+  "cte-query|8|3.00|Use a CTE (WITH clause) to find the top 5 conditions by number of Phase 3 trials, then for each condition find the trial with the highest enrollment. Write the query as a single WITH statement with multiple CTEs. Also run EXPLAIN on the query to check the execution plan. Show the results and comment on whether the query plan looks efficient."
+  "column-discovery|8|3.00|Start by calling database_info to confirm the connection. Then use search_columns to find all columns related to 'date' across the database. Pick 3 interesting date columns from different tables and use describe_table to understand those tables. Finally, write a query that uses at least 2 of those date columns to answer: what is the median time between study start and completion for Phase 3 oncology trials?"
+  "join-exploration|8|3.00|Use search_columns to find which tables have an 'nct_id' column and which tables have outcome-related columns. Then use describe_table on 'outcomes' and 'sponsors' to understand their schemas. Using what you learned, write a query that joins studies, outcomes, and sponsors to answer: among completed Phase 3 trials with a lead sponsor, what are the most common primary outcome measure types? Use a CTE to organize the query."
 )
 
 # ── Run tests ───────────────────────────────────────────────────────────
@@ -126,7 +129,7 @@ for test_entry in "${TESTS[@]}"; do
 
   echo "  [1/3] Running task..."
 
-  if CLAUDECODE= claude -p "$prompt" \
+  if CLAUDECODE= ENABLE_TOOL_SEARCH=false claude -p "$prompt" \
     --plugin-dir "$PLUGIN_DIR" \
     --allowedTools "$ALLOWED_TOOLS" \
     --output-format stream-json \
@@ -138,7 +141,7 @@ for test_entry in "${TESTS[@]}"; do
     extract_text "$task_stream" "$task_text" "$task_json"
 
     # Check if MCP tools were actually used (match plugin prefix or bare tool names)
-    mcp_calls=$(grep -c -E 'mcp__plugin_aact|"(list_tables|describe_table|get_column_values|read_query|fetch_rows)"' "$task_stream" 2>/dev/null | tail -1 || echo "0")
+    mcp_calls=$(grep -c -E 'mcp__plugin_aact|"(database_info|list_tables|describe_table|get_column_values|search_columns|find_joins|read_query|fetch_rows)"' "$task_stream" 2>/dev/null | tail -1 || echo "0")
 
     if [[ "$mcp_calls" -gt 0 ]]; then
       echo "  PASS - $mcp_calls MCP tool calls made"
@@ -170,7 +173,7 @@ for line in sys.stdin:
 
   echo "  [2/3] Running hallucination check..."
 
-  if CLAUDECODE= claude -p "$HALLUCINATION_CHECK_PROMPT" \
+  if CLAUDECODE= ENABLE_TOOL_SEARCH=false claude -p "$HALLUCINATION_CHECK_PROMPT" \
     --resume "$SESSION_ID" \
     --plugin-dir "$PLUGIN_DIR" \
     --allowedTools "$ALLOWED_TOOLS" \
