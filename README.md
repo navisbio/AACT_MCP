@@ -8,7 +8,7 @@ The ClinicalTrials.gov API returns one JSON record per trial — useful for quic
 
 A structured PostgreSQL database makes it far easier to **aggregate, combine, and summarize** clinical trial data in any way you need. And for AI-assisted analysis, SQL is a standard that LLMs handle extremely well — fewer mistakes, less context to manage, better performance, and lower cost compared to parsing bespoke API responses.
 
-> **Note:** This is an independent, third-party wrapper. It is not affiliated with or endorsed by the [Clinical Trials Transformation Initiative (CTTI)](https://ctti-clinicaltrials.org) or Duke University. AACT is a publicly available database — see the [AACT case study](https://connects.ctti-clinicaltrials.org/show/57.pdf) for background.
+> **Note:** This is an independent, third-party integration. It is not affiliated with or endorsed by the [Clinical Trials Transformation Initiative (CTTI)](https://ctti-clinicaltrials.org) or Duke University. However, we released a case study with CTTI on integrating their database with Claude - see [AACT case study](https://connects.ctti-clinicaltrials.org/show/57.pdf).
 
 ## Tools
 
