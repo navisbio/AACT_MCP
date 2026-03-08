@@ -70,3 +70,12 @@ smoketest/results/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Build artifacts
+*.mcpb
+
+# Local tooling
+.beads/
+.claude-plugin/
+.devcontainer/
+skills/
