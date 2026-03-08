@@ -97,7 +97,7 @@ def grounded_result(data: object) -> list[TextContent]:
     ]
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 async def list_tables(ctx: Context):
     """Call this first to discover available tables before writing any queries.
     Returns all table names in the AACT ctgov schema (studies, interventions, outcomes, etc.)
@@ -121,7 +121,7 @@ async def list_tables(ctx: Context):
     return grounded_result(tables)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 async def describe_table(
     table_name: Annotated[str, Field(description="Name of the table to describe", min_length=1)],
     ctx: Context,
@@ -227,7 +227,7 @@ async def describe_table(
     })
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 async def get_column_values(
     table_name: Annotated[str, Field(description="Table name in the ctgov schema", min_length=1)],
     column_name: Annotated[str, Field(description="Column to get distinct values for", min_length=1)],
@@ -263,7 +263,7 @@ async def get_column_values(
     return grounded_result(results)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 async def read_query(
     query: Annotated[str, Field(description="SELECT SQL query to execute", min_length=1)],
     ctx: Context,
@@ -364,7 +364,7 @@ async def read_query(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": False})
 async def fetch_rows(
     query_id: Annotated[str, Field(description="query_id from a previous read_query result")],
     ctx: Context,
@@ -409,7 +409,7 @@ async def fetch_rows(
     return grounded_result(result.model_dump())
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 async def search_columns(
     keyword: Annotated[str, Field(description="Keyword to search for in column names (case-insensitive)", min_length=1)],
     ctx: Context,
@@ -446,7 +446,7 @@ async def search_columns(
     return grounded_result(results)
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 async def database_info(ctx: Context):
     """Get database connection info: server time, PostgreSQL version, schema, and table count.
     Call this to confirm the connection is working and check data currency.

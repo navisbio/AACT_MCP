@@ -1,28 +1,43 @@
 {
   "manifest_version": "0.3",
   "name": "mcp-server-aact",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "display_name": "AACT Clinical Trials Database",
-  "description": "Query the AACT (ClinicalTrials.gov) database directly from Claude. Explore clinical trial data including studies, interventions, outcomes, sponsors, and more using SQL.",
+  "description": "Query the AACT (ClinicalTrials.gov) database directly from Claude. Explore 70+ tables of clinical trial data — studies, interventions, outcomes, sponsors, facilities — using read-only SQL with buffered pagination. All tables join on nct_id.",
   "author": {
-    "name": "Jonas Walheim"
+    "name": "Navis Bio",
+    "url": "https://github.com/navisbio"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/navisbio/mcp-server-aact"
+  },
+  "license": "MIT",
+  "privacy_policies": ["https://github.com/navisbio/mcp-server-aact/blob/main/PRIVACY.md"],
   "tools": [
     {
+      "name": "database_info",
+      "description": "Confirm database connection, server time, and data currency"
+    },
+    {
       "name": "list_tables",
-      "description": "Discover available tables in the AACT database"
+      "description": "Discover all available tables with approximate row counts"
     },
     {
       "name": "describe_table",
-      "description": "Inspect column names and types for a specific table"
+      "description": "Inspect column names, types, distinct counts, and sample values for a table"
     },
     {
       "name": "get_column_values",
       "description": "Get distinct values for a column with counts — essential before filtering"
     },
     {
+      "name": "search_columns",
+      "description": "Find columns by keyword across all tables (e.g. 'masking' -> designs.masking)"
+    },
+    {
       "name": "read_query",
-      "description": "Execute a SELECT query with buffered results and preview"
+      "description": "Execute a SELECT, CTE, or EXPLAIN query with buffered results and preview"
     },
     {
       "name": "fetch_rows",
@@ -61,5 +76,6 @@
     "runtimes": {
       "python": ">=3.10"
     }
-  }
+  },
+  "keywords": ["clinical-trials", "AACT", "ClinicalTrials.gov", "healthcare", "medical-research", "SQL", "database"]
 }

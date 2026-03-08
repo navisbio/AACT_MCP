@@ -1,72 +1,71 @@
 # AACT Clinical Trials MCP Server
 
-## Overview
-A Model Context Protocol (MCP) server implementation that provides access to the AACT (Aggregate Analysis of ClinicalTrials.gov) database using the FastMCP framework. This server allows AI assistants to directly query clinical trial data from the ClinicalTrials.gov database.
+Query the [AACT](https://aact.ctti-clinicaltrials.org) (ClinicalTrials.gov) database directly from Claude. Explore 70+ tables of clinical trial data — studies, interventions, outcomes, sponsors, facilities — using read-only SQL with buffered pagination.
 
-## Features
+## Why AACT over the ClinicalTrials.gov API?
 
-### Tools
+The ClinicalTrials.gov API returns one JSON record per trial — useful for quick lookups, but awkward for analytics. Want the average duration of Phase 2 NSCLC trials from 2020-2025? With the API you'd filter trials, extract dates from each JSON record, then compute durations client-side. With AACT, that's a single SQL query.
 
-- `list_tables`
-   - Get an overview of all available tables in the AACT database
-   - Useful for understanding the database structure before analysis
+A structured PostgreSQL database makes it far easier to **aggregate, combine, and summarize** clinical trial data in any way you need. And for AI-assisted analysis, SQL is a standard that LLMs handle extremely well — fewer mistakes, less context to manage, better performance, and lower cost compared to parsing bespoke API responses.
 
-- `describe_table`
-   - Examine the detailed structure of a specific AACT table
-   - Shows column names and data types
-   - Example: `{"table_name": "studies"}`
+> **Note:** This is an independent, third-party wrapper. It is not affiliated with or endorsed by the [Clinical Trials Transformation Initiative (CTTI)](https://ctti-clinicaltrials.org) or Duke University. AACT is a publicly available database — see the [AACT case study](https://connects.ctti-clinicaltrials.org/show/57.pdf) for background.
 
-- `read_query`
-   - Execute a SELECT query on the AACT clinical trials database
-   - Safely handle SQL queries with validation
-   - Example: `{"query": "SELECT nct_id, brief_title FROM ctgov.studies LIMIT 5", "max_rows": 50}`
+## Tools
 
-## Configuration
+| Tool | Description |
+|------|-------------|
+| `database_info` | Confirm database connection, server time, and data currency |
+| `list_tables` | Discover all available tables with approximate row counts |
+| `describe_table` | Inspect column names, types, distinct counts, and sample values |
+| `get_column_values` | Get distinct values for a column with counts — essential before filtering |
+| `search_columns` | Find columns by keyword across all tables (e.g. `masking` -> `designs.masking`) |
+| `read_query` | Execute a SELECT, CTE, or EXPLAIN query with buffered results and preview |
+| `fetch_rows` | Page through buffered query results without re-querying |
 
-### Database Access
+All tables join on `nct_id`.
+
+## Setup
+
 1. Create a free account at https://aact.ctti-clinicaltrials.org/users/sign_up
-2. Set environment variables:
-   - `DB_USER`: AACT database username
-   - `DB_PASSWORD`: AACT database password
+2. Install the plugin (see options below)
+3. Enter your AACT credentials when prompted
 
-## Usage with Claude Desktop
+## Installation
 
-Note that you need Claude Desktop and a Claude subscription at the moment. 
+### Option 1: Claude Desktop Plugin (recommended)
 
-Add one of the following configurations to the file claude_desktop_config.json. (On macOS, the file is located at /Users/YOUR_USERNAME/Library/Application Support/Claude/claude_desktop_config.json and you will need to create it yourself if it does not exist yet).
+Download the latest `.mcpb` file from [Releases](https://github.com/navisbio/mcp-server-aact/releases) and open it in Claude Desktop. You'll be prompted for your AACT credentials.
 
-### Option 1: Using the published package
+### Option 2: Published package
+
+Add to your `claude_desktop_config.json` (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
 ```json
 {
   "mcpServers": {
-    "CTGOV-MCP": {
+    "aact": {
       "command": "uvx",
-      "args": [
-        "mcp-server-aact"
-      ],
+      "args": ["mcp-server-aact"],
       "env": {
-        "DB_USER": "USERNAME",
-        "DB_PASSWORD": "PASSWORD"
+        "DB_USER": "your_username",
+        "DB_PASSWORD": "your_password"
       }
     }
   }
 }
 ```
 
-### Option 2: Using Docker
+### Option 3: Docker
 
-Simply add this configuration to claude_desktop_config.json (no build required):
 ```json
 {
   "mcpServers": {
-    "CTGOV-MCP-DOCKER": {
+    "aact": {
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "-i",
-        "--env", "DB_USER=YOUR_USERNAME",
-        "--env", "DB_PASSWORD=YOUR_PASSWORD",
+        "run", "--rm", "-i",
+        "--env", "DB_USER=your_username",
+        "--env", "DB_PASSWORD=your_password",
         "navisbio/mcp-server-aact:latest"
       ]
     }
@@ -74,22 +73,24 @@ Simply add this configuration to claude_desktop_config.json (no build required):
 }
 ```
 
-### Option 3: Running from source (development)
+### Option 4: From source
 
-Simply add this configuration to claude_desktop_config.json (no build required):
+```bash
+git clone https://github.com/navisbio/mcp-server-aact.git
+cd mcp-server-aact
+uv sync
+```
+
 ```json
 {
   "mcpServers": {
-    "CTGOV-MCP-DOCKER": {
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "--env", "DB_USER=YOUR_USERNAME",
-        "--env", "DB_PASSWORD=YOUR_PASSWORD",
-        "navisbio/mcp-server-aact:latest"
-      ]
+    "aact": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mcp-server-aact", "mcp-server-aact"],
+      "env": {
+        "DB_USER": "your_username",
+        "DB_PASSWORD": "your_password"
+      }
     }
   }
 }
@@ -97,51 +98,66 @@ Simply add this configuration to claude_desktop_config.json (no build required):
 
 ## Example Prompts
 
-Here are some example prompts to use with this plugin:
+### 1. Competitive landscape analysis
 
-1. "What are the most common types of interventions in breast cancer clinical trials?"
-2. "How many phase 3 clinical trials were completed in 2023?"
-3. "Show me the enrollment statistics for diabetes trials across different countries"
-4. "What percentage of oncology trials have reported results in the last 5 years?"
+> "Who are the top 10 sponsors of Phase 3 Alzheimer's disease trials? Break down by trial status."
+
+The server will discover relevant tables, check enum values for phase and status, then build a query joining `studies`, `conditions`, and `sponsors`.
+
+### 2. Drug pipeline search
+
+> "Find all actively recruiting Phase 2 and Phase 3 trials for pembrolizumab in non-small cell lung cancer. Show NCT ID, title, enrollment, and lead sponsor."
+
+Uses `get_column_values` to confirm phase format (`PHASE2`, `PHASE3`), then queries across `studies`, `browse_interventions`, and `conditions`.
+
+### 3. Endpoint analysis
+
+> "What are the most common primary outcome measures in completed Phase 3 type 2 diabetes trials?"
+
+Joins `studies` with `outcomes` to analyze endpoint patterns, grouped by outcome measure type.
+
+### 4. Geographic distribution
+
+> "How many clinical trial sites does a typical rare disease trial have? Show the top countries by site count."
+
+Queries the `facilities` table joined with `conditions` to map trial geography.
+
+## Privacy
+
+This server is read-only and does not collect or store any personal data. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Troubleshooting
 
-### `spawn uvx ENOENT` Error
+### Connection or authentication errors
 
-This error has been reported when the system cannot find the `uvx` command which might happen when `uvx` is installed in a non-standard location (like `~/.local/bin/`).
+- Verify your AACT credentials at https://aact.ctti-clinicaltrials.org/users/sign_in
+- The AACT database undergoes weekly maintenance (typically weekends) — try again later if the connection is refused
+- Ensure `DB_USER` and `DB_PASSWORD` are set correctly in your config
 
-**Potential Solution:** Update your configuration with the full path. For example:
+### `spawn uvx ENOENT` error
+
+The system cannot find `uvx`. Use the full path:
 
 ```json
 {
-"mcpServers": {
-    "CTGOV-MCP": {
+  "mcpServers": {
+    "aact": {
       "command": "/Users/username/.local/bin/uvx",
-      "args": [
-        "mcp-server-aact"
-      ],
+      "args": ["mcp-server-aact"],
       "env": {
-        "DB_USER": "USERNAME",
-        "DB_PASSWORD": "PASSWORD"
+        "DB_USER": "your_username",
+        "DB_PASSWORD": "your_password"
       }
     }
-}
+  }
 }
 ```
 
-
 ## Contributing
-We welcome contributions! Please:
-- Open an issue on GitHub
-- Start a discussion
+
+- Open an issue on [GitHub](https://github.com/navisbio/mcp-server-aact)
 - Email: jonas.walheim@navis-bio.com
 
-## Acknowledgements
+## License
 
-This project was inspired by and initially based on code from:
-- [SQLite MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite)
-- [DuckDB MCP Server](https://github.com/ktanaka101/mcp-server-duckdb/tree/main)
-- [OpenDataMCP](https://github.com/OpenDataMCP/OpenDataMCP)
-
-Thanks to these awesome projects for showing us the way! 🙌
-
+MIT

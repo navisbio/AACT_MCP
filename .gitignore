@@ -66,3 +66,7 @@ notes.txt
 
 # Smoketest results
 smoketest/results/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
